@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "version": "4.1.0",
+  "channel": "stable",
+  "status": "active",
+  "minimumVersion": "4.1.0",
+  "minimumUpdaterVersion": "0.1.0-local",
+  "releasedAt": "2026-10-16T02:27:18Z",
+  "expiresAt": "2027-01-14T02:27:18Z",
+  "maintenanceRequired": true,
+  "infraUpgradeRequired": false,
+  "images": {
+    "app": {
+      "name": "compdfkit/compdf-app",
+      "tag": "1.0.0",
+      "digest": "sha256:02720ee23a1eabdbbfd8faece90e7669c5b9f2c897665b143bcb1865628e8b7c"
+    },
+    "server": {
+      "name": "ghcr.io/liyangbin-glitch/compdf-server",
+      "tag": "4.1.0",
+      "digest": "sha256:907635826d84b2260bb24fd83412ee632b51e523858a2d7a2d12e3d496804326"
+    }
+  },
+  "migration": {
+    "from": "4.2.1",
+    "to": "4.2.1",
+    "required": false
+  },
+  "rollback": {
+    "application": false,
+    "database": false,
+    "requiresBackupRestore": false
+  },
+  "compose": {
+    "path": "compose.release.yml",
+    "sha256": "225384ee25d3067a2582642f68c92059530601c1f254a5df6b430547209fea57",
+    "size": 3235
+  },
+  "checksums": {
+    "path": "checksums.txt",
+    "sha256": "0c4578a009902bb3987736906c436e929d18f6fa9fd22713d8e667e1d39c1c9d",
+    "size": 86
+  },
+  "releaseNotes": "Initial signed 4.1.0 baseline matching the currently deployed Web/API image. Includes HTTP upload compatibility and license page layout fixes. Database schema remains 4.2.1. This release does not represent a newer version than the installed 4.1.0.",
+  "knownIssues": [
+    "Runtime license replacement is configured separately. Future version installation requires deployment configuration review before approval."
+  ]
+}

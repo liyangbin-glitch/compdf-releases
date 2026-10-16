@@ -1,0 +1,96 @@
+services:
+  compdf-infra:
+    image: ${COMPDF_INFRA_IMAGE:-compdfkit/compdf-infra:1.0.0}
+    platform: ${COMPDF_IMAGE_PLATFORM:-linux/amd64}
+    security_opt:
+      - seccomp:unconfined
+    environment:
+      RUSTFS_ACCESS_KEY: compdfkit-ak
+      RUSTFS_SECRET_KEY: compdfkit-sk-2026
+    volumes:
+      - compdf_mysql_data:/var/lib/mysql
+      - compdf_redis_data:/data/redis
+      - compdf_rustfs_data:/data
+    mem_limit: 3g
+    restart: unless-stopped
+    networks:
+      - compdf-internal
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u compdfkit -pcompdfkit-pass-2026 --silent && redis-cli ping | grep -q PONG && curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:9000/ | grep -qE '^[2-4]'"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+
+  compdf-app:
+    image: ${COMPDF_APP_IMAGE:-compdfkit/compdf-app:1.0.0}
+    platform: ${COMPDF_IMAGE_PLATFORM:-linux/amd64}
+    depends_on:
+      compdf-infra:
+        condition: service_healthy
+    environment:
+      - REDIS_URL=redis://compdf-infra:6379/0
+      - MYSQL_HOST=compdf-infra
+      - S3_ENDPOINT=http://compdf-infra:9000
+      - COMPDF_LICENSE_KEY=${COMPDF_LICENSE_KEY}
+      - COMPDFKIT_LICENSE=${COMPDF_LICENSE_KEY}
+    volumes:
+      - ./fonts/windows:/opt/compdf_sdk/fonts/windows:ro
+      - ./configs/app-license:/opt/compdf_sdk/license:ro
+      - compdf_output:/tmp/compdf_output
+      - compdf_pdf_data:/data
+    restart: unless-stopped
+    mem_limit: 16g
+    networks:
+      - compdf-internal
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:7000/health',timeout=3).status==200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 120s
+
+  compdf-server:
+    image: ${COMPDF_SERVER_IMAGE:-compdfkit/compdf-server:1.0.0}
+    ports:
+      - "8080:8080"
+    depends_on:
+      compdf-infra:
+        condition: service_healthy
+      compdf-app:
+        condition: service_healthy
+    networks:
+      - compdf-internal
+    environment:
+      - COMPDF_VERSION=${COMPDF_VERSION:-4.1.0}
+      - COMPDF_DB_SCHEMA_VERSION=${COMPDF_DB_SCHEMA_VERSION:-4.1.0}
+      - JWT_SECRET=${JWT_SECRET:-}
+      - PDF_SDK_BASE_URL=${PDF_SDK_BASE_URL:-http://compdf-app:7001}
+      - CONVERSION_BASE_URL=${CONVERSION_BASE_URL:-http://compdf-app:7000}
+      - MCP_ENABLED=${MCP_ENABLED:-true}
+      - MCP_PUBLIC_URL=${MCP_PUBLIC_URL:-http://localhost:8080/mcp}
+      - MCP_ALLOWED_HOSTS=${MCP_ALLOWED_HOSTS:-}
+      - MCP_ALLOWED_ORIGINS=${MCP_ALLOWED_ORIGINS:-}
+      - MCP_MAX_INLINE_FILE_BYTES=${MCP_MAX_INLINE_FILE_BYTES:-4194304}
+    volumes:
+      - ./configs:/app/configs
+      - ./data/server-storage:/app/storage
+    command: ["sh", "-c", "npm run init:db && npm run start"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8080/api/v1/status').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+volumes:
+  compdf_output:
+  compdf_redis_data:
+  compdf_pdf_data:
+  compdf_mysql_data:
+  compdf_rustfs_data:
+
+networks:
+  compdf-internal:
+    driver: bridge
